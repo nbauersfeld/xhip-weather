@@ -74,6 +74,15 @@ function ziel() {
 const z = ziel();
 let letzte = null, verbunden = false, geholt = false;
 
+// Taupunkt nach Magnus, dieselben Konstanten wie kpi.taupunkt (07.11.: "der Taupunkt ist neben der
+// Luftfeuchte noch interessant") - hier gerechnet, damit es auch fuer die naechste Stunde geht
+function taupunkt(t, rh) {
+  if (t == null || !rh || rh <= 0) return null;
+  const a = 17.62, b = 243.12, g = a * t / (b + t) + Math.log(rh / 100);
+  return b * g / (a - g);
+}
+const tpText = (t, rh) => { const tp = taupunkt(t, rh); return tp == null ? "" : `Taupunkt ${zahl(tp, 1)} °C`; };
+
 // Wie die Kachel "Naechste Stunde" der Vorhersage im Fenster (Open-Meteo fuer diesen Ort)
 function stundeZeigen(h) {
   const el = document.getElementById("stunde");
@@ -83,7 +92,9 @@ function stundeZeigen(h) {
   const wind = h.wind != null ? ` · Wind ${zahl(h.wind, 0)} km/h` : "";
   el.innerHTML = `<small>Nächste Stunde · ${h.zeit.slice(11, 16)} Uhr</small>`
     + `${zahl(h.t, 1)} °C · ${h.rh == null ? "–" : zahl(h.rh, 0)} %`
-    + `<small>${h.abs != null ? `absolut ${zahl(h.abs, 1)} g/m³` : ""}${regen}${wind}</small>`;
+    // Zahl und Einheit nicht trennen: die Zeile bricht auf dem Handy um, aber nur an den Punkten
+    + `<small>${([tpText(h.t, h.rh), h.abs != null ? `absolut ${zahl(h.abs, 1)} g/m³` : ""].filter(Boolean).join(" · ")
+        + regen + wind).replace(/ (?=km\/h|%|g\/m³|°C)/g, "\u00a0")}</small>`;
 }
 
 function zeigen() {
@@ -102,6 +113,7 @@ function zeigen() {
   document.getElementById("temperatur").innerHTML = `${zahl(d.t, 1)}<span>°C</span>`;
   stundeZeigen(d.h);
   document.getElementById("feuchte").firstChild.textContent = d.rh == null ? "– %" : `${zahl(d.rh, 0)} %`;
+  document.querySelector("#feuchte small").textContent = ["Luftfeuchte", tpText(d.t, d.rh)].filter(Boolean).join(" · ");
   const zeit = d.zeit ? new Date(d.zeit) : null;
   const alter = zeit ? Math.round((Date.now() - zeit) / 60000) : null;
   const stumm = d.gesendet ? Math.round((Date.now() - new Date(d.gesendet)) / 60000) : null;
