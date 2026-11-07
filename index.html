@@ -30,7 +30,14 @@ body {
   text-align: center; font-variant-numeric: tabular-nums;
 }
 #temperatur { font-size: clamp(3.5rem, 22vw, 10rem); white-space: nowrap; font-weight: 650; line-height: 1; margin: 0; letter-spacing: -0.02em; }
-#temperatur span { font-size: 0.45em; font-weight: 500; margin-left: 0.1em; vertical-align: 0.9em; }
+/* Rechts neben der Zahl eine Spalte: oben °C, unten klein der Taupunkt (07.11.: "klein unten rechts
+   neben die Temperatur") */
+#temperatur { display: flex; justify-content: center; align-items: stretch; }
+#temperatur .rechts { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start;
+  margin-left: 0.08em; padding: 0.06em 0 0.08em; }
+#temperatur .einheit { font-size: 0.45em; font-weight: 500; line-height: 1; }
+#temperatur .tp { font-size: max(0.8rem, 0.13em); font-weight: 400; line-height: 1.2; letter-spacing: 0;
+  color: var(--muted); text-align: left; white-space: nowrap; }
 #feuchte { font-size: clamp(2rem, 11vw, 4.5rem); font-weight: 500; margin: 1.25rem 0 0; }
 #feuchte small { font-size: 0.4em; color: var(--muted); font-weight: 400; display: block; margin-top: 0.25rem; }
 #stunde { margin: 2rem 0 0; font-size: clamp(1.1rem, 5vw, 1.6rem); line-height: 1.35; }
@@ -110,10 +117,11 @@ function zeigen() {
     stand.classList.toggle("alt", geholt);
     return;
   }
-  document.getElementById("temperatur").innerHTML = `${zahl(d.t, 1)}<span>°C</span>`;
+  document.getElementById("temperatur").innerHTML = `<span>${zahl(d.t, 1)}</span><span class="rechts"><span class="einheit">°C</span>`
+    + (taupunkt(d.t, d.rh) == null ? "" : `<span class="tp">Taupunkt<br>${zahl(taupunkt(d.t, d.rh), 1)}&nbsp;°C</span>`)
+    + `</span>`;
   stundeZeigen(d.h);
   document.getElementById("feuchte").firstChild.textContent = d.rh == null ? "– %" : `${zahl(d.rh, 0)} %`;
-  document.querySelector("#feuchte small").textContent = ["Luftfeuchte", tpText(d.t, d.rh)].filter(Boolean).join(" · ");
   const zeit = d.zeit ? new Date(d.zeit) : null;
   const alter = zeit ? Math.round((Date.now() - zeit) / 60000) : null;
   const stumm = d.gesendet ? Math.round((Date.now() - new Date(d.gesendet)) / 60000) : null;
