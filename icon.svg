@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- xhip: Haus mit Sonne. Blau wie --s1 im Fenster, Sonne wie --warning -->
+  <rect width="512" height="512" rx="112" fill="#2a78d6"/>
+  <circle cx="356" cy="150" r="54" fill="#fab219"/>
+  <path d="M120 266 256 150 392 266" fill="none" stroke="#ffffff" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M160 248v124h192V248" fill="none" stroke="#ffffff" stroke-width="36" stroke-linejoin="round"/>
+  <rect x="226" y="296" width="60" height="76" rx="8" fill="#ffffff"/>
+</svg>

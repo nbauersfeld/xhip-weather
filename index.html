@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Kein Thema, keine Werte in dieser Datei: sie liegt in einem oeffentlichen Repository.
+     Das Thema kommt hinter dem # (geht nie an GitHub) und bleibt im Browser des Handys -->
+<meta name="referrer" content="no-referrer">
+<title>Wetter</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#2a78d6">
+<style>
+/* Wie /wetter in xhip, aber ohne Tailscale: die Werte schickt xhip alle 10 min an ntfy (07.11.2026) */
+:root {
+  --bg: #f9f9f7; --text: #1d1d1b; --muted: #6b6b66; --warn: #a35200; --akzent: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #141413; --text: #f2f2ee; --muted: #a3a39c; --warn: #f0a050; --akzent: #6aa6ef; }
+}
+:root[data-theme="dark"] { --bg: #141413; --text: #f2f2ee; --muted: #a3a39c; --warn: #f0a050; --akzent: #6aa6ef; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  text-align: center; font-variant-numeric: tabular-nums;
+}
+#temperatur { font-size: clamp(3.5rem, 22vw, 10rem); white-space: nowrap; font-weight: 650; line-height: 1; margin: 0; letter-spacing: -0.02em; }
+#temperatur span { font-size: 0.45em; font-weight: 500; margin-left: 0.1em; vertical-align: 0.9em; }
+#feuchte { font-size: clamp(2rem, 11vw, 4.5rem); font-weight: 500; margin: 1.25rem 0 0; }
+#feuchte small { font-size: 0.4em; color: var(--muted); font-weight: 400; display: block; margin-top: 0.25rem; }
+#stand { margin: 2.5rem 0 0; font-size: 1rem; color: var(--muted); min-height: 1.4em; max-width: 30rem; }
+#stand.alt { color: var(--warn); font-weight: 600; }
+</style>
+</head>
+<body>
+<p id="temperatur" aria-live="polite">–</p>
+<p id="feuchte">– %<small>Luftfeuchte</small></p>
+<p id="stand">verbinde …</p>
+<script>
+"use strict";
+const ALT_MIN = 15;        // Messung aelter: deutlich sagen (morgens nicht den Wert von gestern Abend)
+const STUMM_MIN = 25;      // xhip sendet alle 10 min; laenger nichts: der Rechner schickt nicht
+const NEU_S = 60;          // so oft nachfragen, solange die Seite offen ist
+const zahl = (w, st) => w.toLocaleString("de-DE", {minimumFractionDigits: st, maximumFractionDigits: st});
+const uhr = d => d.toLocaleTimeString("de-DE", {hour: "2-digit", minute: "2-digit"});
+const vor = min => min < 90 ? `${min} min` : `${Math.round(min / 60)} h`;
+
+// Thema aus "#thema" oder "#https://server/thema"; gemerkt, damit die installierte App es ohne # kennt
+function ziel() {
+  let roh = decodeURIComponent(location.hash.slice(1)).trim();
+  if (roh) {
+    try {
+      localStorage.setItem("thema", roh);
+      history.replaceState(null, "", location.pathname);   // nicht in Bildschirmfotos und Verlauf
+    } catch (e) { /* ohne Speicher: dann eben mit # in der Adresse */ }
+  } else {
+    try { roh = localStorage.getItem("thema") || ""; } catch (e) { roh = ""; }
+  }
+  if (!roh) return null;
+  const teil = roh.lastIndexOf("/");
+  return teil > 0 && /^https?:\/\//.test(roh)
+    ? {server: roh.slice(0, teil), thema: roh.slice(teil + 1)}
+    : {server: "https://ntfy.sh", thema: roh};
+}
+const z = ziel();
+let letzte = null, verbunden = false, geholt = false;
+
+function zeigen() {
+  const stand = document.getElementById("stand");
+  if (!z) {
+    stand.textContent = "Noch kein Thema: den Link aus xhip öffnen ('notify weather').";
+    stand.classList.add("alt");
+    return;
+  }
+  const d = letzte;
+  if (!d) {
+    stand.textContent = !geholt ? "verbinde …" : verbunden ? "⚠ noch keine Werte – sendet xhip schon?" : "⚠ keine Verbindung";
+    stand.classList.toggle("alt", geholt);
+    return;
+  }
+  document.getElementById("temperatur").innerHTML = `${zahl(d.t, 1)}<span>°C</span>`;
+  document.getElementById("feuchte").firstChild.textContent = d.rh == null ? "– %" : `${zahl(d.rh, 0)} %`;
+  const zeit = d.zeit ? new Date(d.zeit) : null;
+  const alter = zeit ? Math.round((Date.now() - zeit) / 60000) : null;
+  const stumm = d.gesendet ? Math.round((Date.now() - new Date(d.gesendet)) / 60000) : null;
+  let text = zeit ? `gemessen ${uhr(zeit)}` + (alter >= 1 ? ` · vor ${vor(alter)}` : "") : "Messzeit unbekannt";
+  let alt = alter == null || alter > ALT_MIN || d.erreichbar === false;
+  if (d.erreichbar === false) text = "⚠ Station nicht erreichbar · " + text;
+  else if (stumm != null && stumm > STUMM_MIN) { text = `⚠ xhip sendet nicht (seit ${vor(stumm)}) · ` + text; alt = true; }
+  else if (alt) text = "⚠ veraltet · " + text;
+  if (!verbunden) { text = "⚠ keine Verbindung · " + text; alt = true; }
+  // Ohne Ortszeile (07.11.: "nimm das Balkon-Label raus"): nur sagen, wenn es nicht die Pro ist
+  if (d.pro === false) text += " · andere Station";
+  stand.textContent = text;
+  stand.classList.toggle("alt", alt);
+}
+
+// Die letzte Nachricht des Themas; ntfy haelt sie 12 h. Eine Zeile JSON je Nachricht
+async function holen() {
+  if (!z) { zeigen(); return; }
+  try {
+    const antwort = await fetch(`${z.server}/${encodeURIComponent(z.thema)}/json?poll=1&since=latest`,
+                                {cache: "no-store", referrerPolicy: "no-referrer"});
+    if (!antwort.ok) throw new Error(antwort.status);
+    const zeilen = (await antwort.text()).split("\n").filter(Boolean).map(JSON.parse)
+      .filter(n => n.event === "message");
+    for (const n of zeilen) {
+      try {
+        const d = JSON.parse(n.message);
+        if (typeof d.t === "number") letzte = d;
+      } catch (e) { /* fremde Nachricht im Thema: uebergehen */ }
+    }
+    verbunden = true;
+  } catch (e) {
+    verbunden = false;
+  }
+  geholt = true;
+  zeigen();
+}
+// Handy aus der Tasche: sofort frisch holen
+document.addEventListener("visibilitychange", () => { if (!document.hidden) holen(); });
+setInterval(() => { if (!document.hidden) holen(); else zeigen(); }, NEU_S * 1000);
+holen();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
