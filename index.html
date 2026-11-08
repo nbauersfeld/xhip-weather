@@ -91,9 +91,11 @@ function taupunkt(t, rh) {
 const tpText = (t, rh) => { const tp = taupunkt(t, rh); return tp == null ? "" : `Taupunkt ${zahl(tp, 1)} °C`; };
 
 // Wie die Kachel "Naechste Stunde" der Vorhersage im Fenster (Open-Meteo fuer diesen Ort)
-function stundeZeigen(h) {
+// Aus den mitgeschickten Stunden die erste, die noch kommt; vorbei ist keine Vorhersage mehr
+function stundeZeigen(liste) {
   const el = document.getElementById("stunde");
-  el.hidden = !h || h.t == null || Date.parse(h.zeit) <= Date.now();   // vorbei (alte Nachricht): lieber nichts
+  const h = (liste || []).find(x => x && x.t != null && Date.parse(x.zeit) > Date.now());
+  el.hidden = !h;
   if (el.hidden) return;
   const regen = h.regen_p != null ? ` · Regen ${h.regen_p} %` : "";
   const wind = h.wind != null ? ` · Wind ${zahl(h.wind, 0)} km/h` : "";
@@ -120,7 +122,7 @@ function zeigen() {
   document.getElementById("temperatur").innerHTML = `<span>${zahl(d.t, 1)}</span><span class="rechts"><span class="einheit">°C</span>`
     + (taupunkt(d.t, d.rh) == null ? "" : `<span class="tp">Taupunkt<br>${zahl(taupunkt(d.t, d.rh), 1)}&nbsp;°C</span>`)
     + `</span>`;
-  stundeZeigen(d.h);
+  stundeZeigen([d.h, d.h2]);
   document.getElementById("feuchte").firstChild.textContent = d.rh == null ? "– %" : `${zahl(d.rh, 0)} %`;
   const zeit = d.zeit ? new Date(d.zeit) : null;
   const alter = zeit ? Math.round((Date.now() - zeit) / 60000) : null;
